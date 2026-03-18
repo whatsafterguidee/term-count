@@ -4,11 +4,13 @@
   ─────────────────────────────────────
   รองรับ: .txt, .docx, .pdf, .srt | วิเคราะห์ภาษาไทย/อังกฤษ 
   ฟีเจอร์: N-grams, KWIC, Word Cloud, Export CSV
+  รองรับฟอนต์ภาษาไทย TH Sarabun New สำหรับ Data Viz
 =============================================================
 """
 
 import re
 import io
+import os  # สำคัญมากสำหรับการตรวจสอบไฟล์ฟอนต์
 import collections
 
 import streamlit as st
@@ -22,6 +24,9 @@ import PyPDF2
 from pythainlp.tokenize import word_tokenize
 from pythainlp.corpus import thai_stopwords
 from wordcloud import WordCloud
+
+# ตั้งค่าชื่อไฟล์ฟอนต์ภาษาไทยหลักที่ใช้อ้างอิงในโค้ด
+THAI_FONT_FILE = "THSarabunNew.ttf"
 
 # ─── Stopwords ────────────────────────────────────────────────────────
 DEFAULT_EN_STOPWORDS = {
@@ -184,11 +189,32 @@ if uploaded_file is not None:
                 fig, ax = plt.subplots(figsize=(6, max(4, top_n * 0.3)))
                 fig.patch.set_facecolor("#1c1f29")
                 ax.set_facecolor("#1c1f29")
-                # สำหรับภาษาไทยบนกราฟ Matplotlib ใน Streamlit อาจจะเหลื่อมถ้าไม่มีฟอนต์ 
-                # แต่ภาษาอังกฤษแสดงผลปกติ
+                
+                # เตรียมข้อมูลสำหรับกราฟแท่งแนวนอน
                 data = df_display.iloc[::-1]
                 bars = ax.barh(data["คำ/กลุ่มคำ"], data["จำนวนครั้ง"], color="#e8b84b", height=0.6)
+                
+                # ─── แก้ไขฟอนต์ภาษาไทยบนแกนกราฟ ───
+                # โหลดไฟล์ฟอนต์จาก Project Folder
+                font_path = THAI_FONT_FILE
+                
+                # ตั้งค่าสีแกนและตัวเลขเริ่มต้น
                 ax.tick_params(colors="#c8c2b4")
+                
+                # ตรวจสอบ: ถ้าเป็นภาษาไทย และมีไฟล์ฟอนต์จริง ให้ใช้ฟอนต์นั้นบนแกน Y (รายชื่อคำศัพท์)
+                if lang == "ภาษาไทย (Thai)" and os.path.exists(font_path):
+                    # กำหนดขนาดฟอนต์ 16 (ปรับได้)
+                    thai_font_prop = fm.FontProperties(fname=font_path, size=16)
+                    
+                    # บังคับ set ticks เพื่อให้แม่นยำตอนเปลี่ยน label
+                    ax.set_yticks(range(len(data)))
+                    # นำ FontProperties ไปใส่ใน yticklabels
+                    ax.set_yticklabels(data["คำ/กลุ่มคำ"], fontproperties=thai_font_prop, color="#c8c2b4")
+                    st.caption(f"*แสดงผลกราฟโดยใช้ฟอนต์ {THAI_FONT_FILE}*")
+                elif lang == "ภาษาไทย (Thai)" and not os.path.exists(font_path):
+                    st.warning(f"⚠️ ไม่พบไฟล์ '{THAI_FONT_FILE}' บน GitHub ภาษาไทยบนแกนกราฟอาจแสดงผลเป็นกล่องสี่เหลี่ยม")
+                # ─────────────────────────────────────────
+
                 for spine in ax.spines.values(): spine.set_visible(False)
                 st.pyplot(fig)
                 plt.close(fig)
@@ -202,9 +228,20 @@ if uploaded_file is not None:
             st.markdown("#### แผนภาพคลาวด์คำศัพท์")
             freq_dict = dict(zip(df_all["คำ/กลุ่มคำ"], df_all["จำนวนครั้ง"]))
             try:
-                # หมายเหตุ: หากใช้งานภาษาไทยและเกิดกล่องสี่เหลี่ยม ให้นำไฟล์ .ttf (เช่น THSarabunNew.ttf) มาใส่ 
-                # แล้วเปลี่ยน font_path="THSarabunNew.ttf"
-                font_p = "THSarabunNew.ttf" if lang == "ภาษาไทย (Thai)" else None 
+                # ─── แก้ไขฟอนต์ภาษาไทยบน Word Cloud ───
+                font_path = THAI_FONT_FILE
+                
+                # เริ่มต้นเป็น None (ใช้ฟอนต์ปกติของอังกฤษ)
+                font_p = None
+                
+                # ตรวจสอบสำหรับภาษาไทย
+                if lang == "ภาษาไทย (Thai)":
+                    if os.path.exists(font_path):
+                        font_p = font_path  # มีฟอนต์ -> ใช้ฟอนต์ไทย
+                    else:
+                        # ไม่มีฟอนต์ -> ใช้ None และเตือนผู้ใช้
+                        st.warning(f"⚠️ ไม่พบไฟล์ '{THAI_FONT_FILE}' บน GitHub ภาษาไทยบน Word Cloud จะแสดงผลเป็นกล่องสี่เหลี่ยม")
+                # ─────────────────────────────────────────
  
                 wc = WordCloud(width=800, height=400, background_color="#1c1f29", colormap="Wistia", font_path=font_p)
                 wc.generate_from_frequencies(freq_dict)
@@ -214,10 +251,11 @@ if uploaded_file is not None:
                 ax_wc.axis("off")
                 st.pyplot(fig_wc)
                 plt.close(fig_wc)
-                if lang == "ภาษาไทย (Thai)":
-                    st.caption("*หากคำภาษาไทยแสดงเป็นกล่องสี่เหลี่ยม กรุณาตรวจสอบการตั้งค่าไฟล์ Font (.ttf) ในโปรเจกต์ของคุณ*")
+                
+                if lang == "ภาษาไทย (Thai)" and os.path.exists(font_path):
+                    st.caption(f"*แสดงผล Word Cloud โดยใช้ฟอนต์ {THAI_FONT_FILE}*")
             except Exception as e:
-                st.error(f"ไม่สามารถสร้าง Word Cloud ได้ (อาจเกิดจากไม่มีไฟล์ฟอนต์ภาษาไทย): {e}")
+                st.error(f"ไม่สามารถสร้าง Word Cloud ได้: {e}")
 
         with tab3:
             st.markdown("#### ระบบวิเคราะห์บริบทแวดล้อม (Key Word In Context)")
