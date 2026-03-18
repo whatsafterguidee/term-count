@@ -204,7 +204,8 @@ if uploaded_file is not None:
             try:
                 # หมายเหตุ: หากใช้งานภาษาไทยและเกิดกล่องสี่เหลี่ยม ให้นำไฟล์ .ttf (เช่น THSarabunNew.ttf) มาใส่ 
                 # แล้วเปลี่ยน font_path="THSarabunNew.ttf"
-                font_p = "tahoma.ttf" if lang == "ภาษาไทย (Thai)" else None 
+                font_p = "THSarabunNew.ttf" if lang == "ภาษาไทย (Thai)" else None 
+ 
                 wc = WordCloud(width=800, height=400, background_color="#1c1f29", colormap="Wistia", font_path=font_p)
                 wc.generate_from_frequencies(freq_dict)
                 fig_wc, ax_wc = plt.subplots(figsize=(10, 5))
